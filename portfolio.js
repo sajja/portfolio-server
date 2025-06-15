@@ -47,56 +47,53 @@ router.get('/equity', async (req, res) => {
       return res.json({ stocks: [] });
     }
 
-    // For each symbol, check if we have a price in current_stock_values
-    db.all('SELECT symbol FROM current_stock_values', async (err, currentRows) => {
-      if (err) {
-        return res.status(500).json({ error: 'Database error' });
-      }
-      const currentSymbols = new Set(currentRows.map(r => r.symbol));
-      for (const stock of stocks) {
-        if (!currentSymbols.has(stock.symbol)) {
-          try {
-            // Fetch from CSE API
-            const response = await axios.post(
-              'https://www.cse.lk/api/daysTrade',
-              new URLSearchParams({ symbol: `${stock.symbol}.N0000` }),
-              {
-                headers: {
-                  'accept': 'application/json, text/plain, */*',
-                  'content-type': 'application/x-www-form-urlencoded; charset=UTF-8'
-                }
-              }
-            );
-            const trades = Array.isArray(response.data) ? response.data : [response.data];
-            const validTrades = trades.filter(t => t && t.time);
+    const currentRows = stocks;
+    console.log('Current active stock symbols:', currentRows.map(r => r.symbol));
 
-            // Map each trade to include the modified time (+3h and 12h adjustment if needed)
-            const tradesWithModifiedTime = validTrades.map(trade => ({
-              ...trade,
-              modifiedTime: modifyTime(trade.time)
-            }));
+    const currentSymbols = new Set(currentRows.map(r => r.symbol));
+    const results = []; // <-- Make sure this is defined
 
-            // Sort by modifiedTime descending (latest first)
-            tradesWithModifiedTime.sort((a, b) => (a.modifiedTime < b.modifiedTime ? 1 : -1));
-
-            // Print each trade's modified time and price
-            tradesWithModifiedTime.forEach(trade => {
-              console.log(`Symbol: ${stock.symbol}, Trading time (+3h): ${trade.modifiedTime}, Price: ${trade.price}`);
-            });
-            if (validTrades.length > 0) {
-              // Sort by time (HH:MM:SS lexicographically)
-              validTrades.sort((a, b) => (a.time > b.time ? 1 : -1));
-              const latest = validTrades[validTrades.length - 1];
-              console.log(`Symbol: ${stock.symbol}, Last update time: ${latest.time}`);
-              // Optionally, you can store the latest price/time in your DB here
+    for (const stock of stocks) {
+      let lastTradedPrice = null;
+      let status = "ok"; // Add status field
+      try {
+        const response = await axios.post(
+          'https://www.cse.lk/api/daysTrade',
+          new URLSearchParams({ symbol: `${stock.symbol}.N0000` }),
+          {
+            headers: {
+              'accept': 'application/json, text/plain, */*',
+              'content-type': 'application/x-www-form-urlencoded; charset=UTF-8'
             }
-          } catch (e) {
-            console.log(`Symbol: ${stock.symbol}, Error fetching latest trade`);
           }
+        );
+        const trades = Array.isArray(response.data) ? response.data : [response.data];
+        const validTrades = trades.filter(t => t && t.time);
+
+        const tradesWithModifiedTime = validTrades.map(trade => ({
+          ...trade,
+          modifiedTime: modifyTime(trade.time)
+        }));
+
+        tradesWithModifiedTime.sort((a, b) => (a.modifiedTime < b.modifiedTime ? 1 : -1));
+
+        if (tradesWithModifiedTime.length > 0) {
+          lastTradedPrice = tradesWithModifiedTime[0].price;
+          console.log(`Symbol: ${stock.symbol}, Last traded price: ${lastTradedPrice}, Modified time: ${tradesWithModifiedTime[0].modifiedTime}`);
         }
+      } catch (e) {
+        console.log(`Symbol: ${stock.symbol}, Error fetching latest trade`);
+        status = "error"; // Optionally set to error if needed
       }
-      res.json({ stocks });
-    });
+      results.push({
+        symbol: stock.symbol,
+        qtty: stock.qtty,
+        avg_price: stock.avg_price,
+        date: stock.date,
+        lastTradedPrice
+      });
+    }
+    res.json({ stocks: results });
   });
 });
 
