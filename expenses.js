@@ -120,11 +120,11 @@ router.get('/summary', (req, res) => {
   const params = months.flatMap(m => [m.year, m.month]);
 
   db.all(
-    `SELECT strftime('%Y', date) as year, strftime('%m', date) as month, category, SUM(amount) as total
+    `SELECT strftime('%Y', date) as year, strftime('%m', date) as month, category, subcategory, SUM(amount) as total
      FROM expenses
      WHERE ${placeholders}
-     GROUP BY year, month, category
-     ORDER BY year DESC, month DESC, category`,
+     GROUP BY year, month, category, subcategory
+     ORDER BY year DESC, month DESC, category, subcategory`,
     params,
     (err, rows) => {
       if (err) {
@@ -139,7 +139,11 @@ router.get('/summary', (req, res) => {
         const label = `${row.year}-${row.month}`;
         if (!summary[label]) continue;
         summary[label].total += row.total;
-        summary[label].categories[row.category] = row.total;
+        if (!summary[label].categories[row.category]) {
+          summary[label].categories[row.category] = { total: 0, subcategories: {} };
+        }
+        summary[label].categories[row.category].total += row.total;
+        summary[label].categories[row.category].subcategories[row.subcategory] = row.total;
       }
       res.status(200).json(summary);
     }

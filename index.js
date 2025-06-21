@@ -23,6 +23,7 @@ app.use((req, res, next) => {
 // Routers
 app.use('/api/v1/portfolio', require('./portfolio'));
 app.use('/api/v1/companies', require('./companies'));
+app.use('/api/v1/expense', require('./expenses'));
 
 app.listen(PORT, () => {
   console.log(`Server running on http://localhost:${PORT}`);
