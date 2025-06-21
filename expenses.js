@@ -6,8 +6,8 @@ const db = require('./db');
 router.post('/', (req, res) => {
   const { Year, Month, Expenses } = req.body;
   // Normalize Month to Title Case (e.g., 'jun' -> 'Jun')
-  if (!Year || typeof Month !== 'number' || Month < 1 || Month > 12 || !Array.isArray(Expenses) || Expenses.length === 0) {
-    return res.status(400).json({ error: 'Request body must include Year, Month (as number 1-12), and a non-empty Expenses array.' });
+  if (typeof Year !== 'number' || !Year || typeof Month !== 'number' || Month < 1 || Month > 12 || !Array.isArray(Expenses) || Expenses.length === 0) {
+    return res.status(400).json({ error: 'Request body must include Year (number), Month (number 1-12), and a non-empty Expenses array.' });
   }
   const monthStr = Month.toString().padStart(2, '0');
   console.log(`Importing expenses for Year: ${Year}, Month: ${monthStr}`);
@@ -104,7 +104,7 @@ router.get('/', (req, res) => {
 
 // GET /api/v1/expense/summary?months=N
 router.get('/summary', (req, res) => {
-  const period = parseInt(req.query.months, 10) || 3;
+  const period = parseInt(req.query.months, 10) || 6;
   const now = new Date();
   const months = [];
   for (let i = 0; i < period; i++) {
