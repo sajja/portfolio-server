@@ -68,4 +68,45 @@ db.run(`
   }
 });
 
+db.run(`
+  CREATE TABLE IF NOT EXISTS expenses (
+    id INTEGER PRIMARY KEY AUTOINCREMENT,
+    date TEXT NOT NULL,
+    category TEXT NOT NULL,
+    subcategory TEXT NOT NULL,
+    amount REAL NOT NULL,
+    description TEXT
+  )
+`, (err) => {
+  if (err) {
+    console.error('Error creating expenses table:', err);
+  }
+});
+
+db.run(`
+  CREATE TABLE IF NOT EXISTS expense_meta (
+    id INTEGER PRIMARY KEY AUTOINCREMENT,
+    year INTEGER NOT NULL,
+    month TEXT NOT NULL,
+    UNIQUE(year, month)
+  )
+`, (err) => {
+  if (err) {
+    console.error('Error creating expense_meta table:', err);
+  }
+});
+
+// Create an index on the 'date' column of the expenses table for faster queries
+function createExpensesDateIndex() {
+  db.run(`CREATE INDEX IF NOT EXISTS idx_expenses_date ON expenses(date)`);
+}
+
+function insertExpense({ Date, amount, category, Subcategory, Description }, cb) {
+  const stmt = db.prepare(`INSERT INTO expenses (date, amount, category, subcategory, description) VALUES (?, ?, ?, ?, ?)`);
+  stmt.run([Date, amount, category, Subcategory, Description || null], function (err) {
+    cb(err, this ? this.lastID : null);
+  });
+  stmt.finalize();
+}
+
 module.exports = db;
