@@ -2,6 +2,10 @@ const express = require('express');
 const app = express();
 const PORT = 3000;
 
+// Import and start the DividentSyncJob scheduler
+const DividentSyncJob = require('./DividentSyncJob');
+DividentSyncJob.startScheduler();
+
 // Middleware
 app.use(express.json());
 app.use((req, res, next) => {
@@ -23,7 +27,6 @@ app.use((req, res, next) => {
 // Routers
 app.use('/api/v1/portfolio', require('./portfolio'));
 app.use('/api/v1/companies', require('./companies'));
-app.use('/api/v1/expense', require('./expenses'));
 
 app.listen(PORT, () => {
   console.log(`Server running on http://localhost:${PORT}`);
