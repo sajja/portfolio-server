@@ -85,19 +85,47 @@ router.post('/', (req, res) => {
 // GET /api/v1/expense?year=YYYY&month=MonthName
 router.get('/', (req, res) => {
   const { year, month } = req.query;
+  let page = parseInt(req.query.page, 10);
+  if (isNaN(page) || page < 1) page = 1;
+  let pageSize = parseInt(req.query.pageSize, 10);
+  if (isNaN(pageSize) || pageSize < 1) pageSize = 20;
+  
   if (!year || !month) {
     return res.status(400).json({ error: 'Query parameters year and month are required.' });
   }
-  db.all(
-    `SELECT id, date, amount, category, subcategory, description FROM expenses 
-     WHERE strftime('%Y', date) = ? AND strftime('%m', date) = ?`,
-    [year, month.padStart(2, '0')],
-    (err, rows) => {
+  const monthPadded = month.padStart(2, '0');
+  db.get(
+    `SELECT COUNT(*) as count FROM expenses WHERE strftime('%Y', date) = ? AND strftime('%m', date) = ?`,
+    [year, monthPadded],
+    (err, countRow) => {
       if (err) {
-        console.error('Error fetching expenses:', err);
+        console.error('Error counting expenses:', err);
         return res.status(500).json({ error: 'Failed to fetch expenses.' });
       }
-      res.status(200).json({ year, month, expenses: rows });
+      const total = countRow.count;
+      const totalPages = Math.ceil(total / pageSize);
+      db.all(
+        `SELECT id, date, amount, category, subcategory, description FROM expenses 
+         WHERE strftime('%Y', date) = ? AND strftime('%m', date) = ?
+         ORDER BY date ASC, id ASC
+         LIMIT ? OFFSET ?`,
+        [year, monthPadded, pageSize, (page - 1) * pageSize],
+        (err, rows) => {
+          if (err) {
+            console.error('Error fetching expenses:', err);
+            return res.status(500).json({ error: 'Failed to fetch expenses.' });
+          }
+          res.status(200).json({
+            year,
+            month: monthPadded,
+            page,
+            pageSize,
+            total,
+            totalPages,
+            expenses: rows
+          });
+        }
+      );
     }
   );
 });
