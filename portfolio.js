@@ -90,6 +90,7 @@ router.get('/equity', async (req, res) => {
         qtty: stock.qtty,
         avg_price: stock.avg_price,
         date: stock.date,
+        comment: stock.comment,
         lastTradedPrice
       });
     }
