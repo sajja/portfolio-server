@@ -178,4 +178,26 @@ router.get('/summary', (req, res) => {
   );
 });
 
+// GET /api/v1/expense/admin/summary
+router.get('/admin/summary', (req, res) => {
+  db.all(
+    `SELECT DISTINCT year, month FROM expense_meta ORDER BY year DESC, month DESC`,
+    [],
+    (err, rows) => {
+      if (err) {
+        console.error('Error fetching expense months:', err);
+        return res.status(500).json({ error: 'Failed to fetch expense months.' });
+      }
+      
+      // Convert month strings to integers and ensure year is numeric
+      const months = rows.map(row => ({
+        year: parseInt(row.year),
+        month: parseInt(row.month)
+      }));
+      
+      res.status(200).json(months);
+    }
+  );
+});
+
 module.exports = router;
