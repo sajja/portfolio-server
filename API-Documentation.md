@@ -287,6 +287,32 @@ http://localhost:3000/api/v1/companies
   ]
   ```
 
+### 5. Delete Expense Data for a Month
+
+**DELETE** `/api/v1/expense/admin`
+
+- **Description:** Deletes all expense data for a specific year/month
+- **Body:**
+  ```json
+  {
+    "year": 2025,
+    "month": 6
+  }
+  ```
+- **Response:**
+  ```json
+  {
+    "message": "Successfully deleted expense data for year 2025, month 6.",
+    "deletedExpenses": 42,
+    "year": 2025,
+    "month": 6
+  }
+  ```
+- **Errors:**
+  - `400` if year or month is missing
+  - `404` if no expense data exists for the specified year/month
+  - `500` if database operations fail
+
 ---
 
 ## 💹 Dividend Endpoints

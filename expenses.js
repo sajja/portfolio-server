@@ -200,4 +200,74 @@ router.get('/admin/summary', (req, res) => {
   );
 });
 
+// DELETE /api/v1/expense/admin
+router.delete('/admin', (req, res) => {
+  const { year, month } = req.body;
+  
+  if (!year || !month) {
+    return res.status(400).json({ error: 'Year and month are required in the request body.' });
+  }
+  
+  const monthStr = month.toString().padStart(2, '0');
+  
+  // Check if the year/month exists
+  db.get('SELECT 1 FROM expense_meta WHERE year = ? AND month = ?', [year, monthStr], (err, row) => {
+    if (err) {
+      console.error('DB error:', err);
+      return res.status(500).json({ error: 'Database error.' });
+    }
+    
+    if (!row) {
+      return res.status(404).json({ error: `No expense data found for year ${year}, month ${month}.` });
+    }
+    
+    // Perform deletion in a transaction
+    db.serialize(() => {
+      db.run('BEGIN TRANSACTION');
+      
+      // First delete related expenses
+      db.run(
+        `DELETE FROM expenses WHERE strftime('%Y', date) = ? AND strftime('%m', date) = ?`,
+        [year.toString(), monthStr],
+        function(expErr) {
+          if (expErr) {
+            console.error('Error deleting expenses:', expErr);
+            db.run('ROLLBACK');
+            return res.status(500).json({ error: 'Failed to delete expense data.' });
+          }
+          
+          const deletedExpenses = this.changes;
+          
+          // Then delete from expense_meta
+          db.run(
+            'DELETE FROM expense_meta WHERE year = ? AND month = ?',
+            [year, monthStr],
+            function(metaErr) {
+              if (metaErr) {
+                console.error('Error deleting expense_meta:', metaErr);
+                db.run('ROLLBACK');
+                return res.status(500).json({ error: 'Failed to delete expense metadata.' });
+              }
+              
+              db.run('COMMIT', (commitErr) => {
+                if (commitErr) {
+                  console.error('Error committing transaction:', commitErr);
+                  return res.status(500).json({ error: 'Failed to commit transaction.' });
+                }
+                
+                res.status(200).json({ 
+                  message: `Successfully deleted expense data for year ${year}, month ${month}.`,
+                  deletedExpenses,
+                  year,
+                  month
+                });
+              });
+            }
+          );
+        }
+      );
+    });
+  });
+});
+
 module.exports = router;
