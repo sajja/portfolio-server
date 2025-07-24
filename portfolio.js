@@ -272,15 +272,17 @@ router.get('/summary', (req, res) => {
   function calcSummary(transactions) {
     let totalInvestment = 0;
     let totalProfit = 0;
+    let totalSellPrice = 0;
     transactions.forEach(tx => {
       if (tx.type === 'buy') {
         totalInvestment += tx.qtty * tx.price;
-      } else if (tx.type === 'sell' && tx.profit_loss != null) {
-        totalProfit += tx.profit_loss;
+      } else if (tx.type === 'sell') {
+        totalSellPrice += (tx.qtty * tx.price);
       }
     });
+    console.log(totalSellPrice )
     const profitPercent = totalInvestment > 0
-      ? Math.round((totalProfit / totalInvestment) * 10000) / 100
+      ? Math.round((totalSellPrice / totalInvestment) * 10000) / 100
       : 0;
     return {
       total_investment: Math.round(totalInvestment * 100) / 100,
