@@ -320,10 +320,12 @@ router.get('/summary', (req, res) => {
     const d = new Date(now.getFullYear(), now.getMonth() - months + 1, 1);
     return d.toISOString().split('T')[0];
   }
-  function calcSummary(transactions) {
+  function calcSummary(transactions, dividends) {
     let totalInvestment = 0;
     let totalProfit = 0;
     let totalSellPrice = 0;
+    let totalDividends = 0;
+    
     transactions.forEach(tx => {
       if (tx.type === 'buy') {
         totalInvestment += tx.qtty * tx.price;
@@ -331,29 +333,51 @@ router.get('/summary', (req, res) => {
         totalSellPrice += (tx.qtty * tx.price);
       }
     });
-    console.log(totalSellPrice )
+    
+    // Add dividend payouts to profit calculation
+    dividends.forEach(div => {
+      totalDividends += div.amount;
+    });
+    
+    console.log('Total sell price:', totalSellPrice, 'Total dividends:', totalDividends);
+    const totalReturns = totalSellPrice + totalDividends;
     const profitPercent = totalInvestment > 0
-      ? Math.round((totalSellPrice / totalInvestment) * 10000) / 100
+      ? Math.round((totalReturns / totalInvestment) * 10000) / 100
       : 0;
     return {
       total_investment: Math.round(totalInvestment * 100) / 100,
-      profit_percent: profitPercent
+      profit_percent: profitPercent,
+      total_dividends: Math.round(totalDividends * 100) / 100
     };
   }
+  
+  // Fetch both transactions and dividend history
   db.all(`SELECT * FROM transactions`, [], (err, transactions) => {
     if (handleDbError(res, err)) return;
-    const last24 = monthsAgo(24);
-    const last12 = monthsAgo(12);
-    const last6 = monthsAgo(6);
-    const tx24 = transactions.filter(tx => tx.date >= last24);
-    const tx12 = transactions.filter(tx => tx.date >= last12);
-    const tx6 = transactions.filter(tx => tx.date >= last6);
-    res.json({
-      equity: {
-        summary_24_months: calcSummary(tx24),
-        summary_12_months: calcSummary(tx12),
-        summary_6_months: calcSummary(tx6)
-      }
+    
+    db.all(`SELECT symbol, amount, date FROM dividend_history`, [], (err, dividends) => {
+      if (handleDbError(res, err)) return;
+      
+      const last24 = monthsAgo(24);
+      const last12 = monthsAgo(12);
+      const last6 = monthsAgo(6);
+      
+      const tx24 = transactions.filter(tx => tx.date >= last24);
+      const tx12 = transactions.filter(tx => tx.date >= last12);
+      const tx6 = transactions.filter(tx => tx.date >= last6);
+      
+      // Filter dividends by payment date (stored in 'date' column)
+      const div24 = dividends.filter(div => div.date >= last24);
+      const div12 = dividends.filter(div => div.date >= last12);
+      const div6 = dividends.filter(div => div.date >= last6);
+      
+      res.json({
+        equity: {
+          summary_24_months: calcSummary(tx24, div24),
+          summary_12_months: calcSummary(tx12, div12),
+          summary_6_months: calcSummary(tx6, div6)
+        }
+      });
     });
   });
 });
@@ -406,6 +430,94 @@ router.put('/equity/:name/dividend', (req, res) => {
       }
     );
   });
+});
+
+// PUT /api/v1/portfolio/fd
+router.put('/fd', (req, res) => {
+  const { bankName, principalAmount, interestRate, maturityPeriod } = req.body;
+  
+  // Validate input data
+  if (!bankName || typeof bankName !== 'string' || bankName.trim() === '') {
+    return res.status(400).json({ 
+      error: 'Bank name is required and must be a non-empty string.' 
+    });
+  }
+  
+  if (!principalAmount || typeof principalAmount !== 'number' || principalAmount <= 0) {
+    return res.status(400).json({ 
+      error: 'Principal amount is required and must be a positive number.' 
+    });
+  }
+  
+  if (!interestRate || typeof interestRate !== 'number' || interestRate <= 0) {
+    return res.status(400).json({ 
+      error: 'Interest rate is required and must be a positive number.' 
+    });
+  }
+  
+  if (!maturityPeriod || typeof maturityPeriod !== 'number' || maturityPeriod <= 0 || !Number.isInteger(maturityPeriod)) {
+    return res.status(400).json({ 
+      error: 'Maturity period is required and must be a positive integer (months).' 
+    });
+  }
+  
+  // Calculate dates
+  const currentDate = new Date();
+  const startDate = currentDate.toISOString().split('T')[0]; // YYYY-MM-DD format
+  
+  const maturityDate = new Date(currentDate);
+  maturityDate.setMonth(maturityDate.getMonth() + maturityPeriod);
+  const maturityDateStr = maturityDate.toISOString().split('T')[0];
+  
+  // Calculate maturity value: Principal + (Principal × Interest Rate × Period) / 100 / 12
+  const interest = (principalAmount * interestRate * maturityPeriod) / 100 / 12;
+  const maturityValue = Math.round((principalAmount + interest) * 100) / 100;
+  
+  // Insert FD record
+  db.run(
+    'INSERT INTO fixed_deposits (bank_name, principal_amount, interest_rate, maturity_period, start_date, maturity_date, maturity_value) VALUES (?, ?, ?, ?, ?, ?, ?)',
+    [bankName.trim(), principalAmount, interestRate, maturityPeriod, startDate, maturityDateStr, maturityValue],
+    function(err) {
+      if (handleDbError(res, err)) return;
+      
+      res.status(201).json({
+        message: 'Fixed deposit created successfully',
+        id: this.lastID,
+        bankName: bankName.trim(),
+        principalAmount: principalAmount,
+        interestRate: interestRate,
+        maturityPeriod: maturityPeriod,
+        startDate: startDate,
+        maturityDate: maturityDateStr,
+        maturityValue: maturityValue
+      });
+    }
+  );
+});
+
+// GET /api/v1/portfolio/fd
+router.get('/fd', (req, res) => {
+  db.all(
+    'SELECT id, bank_name, principal_amount, interest_rate, maturity_period, start_date, maturity_date, maturity_value, created_at FROM fixed_deposits ORDER BY created_at DESC',
+    [],
+    (err, fixedDeposits) => {
+      if (handleDbError(res, err)) return;
+      
+      res.status(200).json({
+        fixedDeposits: fixedDeposits.map(fd => ({
+          id: fd.id,
+          bankName: fd.bank_name,
+          principalAmount: fd.principal_amount,
+          interestRate: fd.interest_rate,
+          maturityPeriod: fd.maturity_period,
+          startDate: fd.start_date,
+          maturityDate: fd.maturity_date,
+          maturityValue: fd.maturity_value,
+          createdAt: fd.created_at
+        }))
+      });
+    }
+  );
 });
 
 module.exports = router;

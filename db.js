@@ -112,6 +112,38 @@ db.run(`
   }
 });
 
+// Create fixed_deposits table
+db.run(`
+  CREATE TABLE IF NOT EXISTS fixed_deposits (
+    id INTEGER PRIMARY KEY AUTOINCREMENT,
+    bank_name TEXT NOT NULL,
+    principal_amount REAL NOT NULL,
+    interest_rate REAL NOT NULL,
+    maturity_period INTEGER NOT NULL,
+    start_date TEXT NOT NULL,
+    maturity_date TEXT NOT NULL,
+    maturity_value REAL NOT NULL,
+    created_at DATETIME DEFAULT CURRENT_TIMESTAMP
+  )
+`, (err) => {
+  if (err) {
+    console.error('Error creating fixed_deposits table:', err);
+  } else {
+    console.log('fixed_deposits table ready');
+  }
+});
+
+// Add maturity_value column to existing fixed_deposits table if it doesn't exist
+db.run(`
+  ALTER TABLE fixed_deposits ADD COLUMN maturity_value REAL DEFAULT 0
+`, (err) => {
+  if (err && !err.message.includes('duplicate column name')) {
+    console.error('Error adding maturity_value column:', err);
+  } else if (!err) {
+    console.log('maturity_value column added to fixed_deposits table');
+  }
+});
+
 // Create an index on the 'date' column of the expenses table for faster queries
 function createExpensesDateIndex() {
   db.run(`CREATE INDEX IF NOT EXISTS idx_expenses_date ON expenses(date)`);

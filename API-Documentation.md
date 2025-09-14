@@ -141,14 +141,14 @@ http://localhost:3000/api/v1/companies
 
 **GET** `/api/v1/portfolio/summary`
 
-- **Description:** Returns investment and profit % for last 24, 12, and 6 months.
+- **Description:** Returns investment and profit % for last 24, 12, and 6 months, including dividend payouts based on payment date.
 - **Response:**  
   ```json
   {
     "equity": {
-      "summary_24_months": { "total_investment": 10000, "profit_percent": 5.5 },
-      "summary_12_months": { "total_investment": 8000, "profit_percent": 4.2 },
-      "summary_6_months": { "total_investment": 4000, "profit_percent": 2.1 }
+      "summary_24_months": { "total_investment": 10000, "profit_percent": 5.5, "total_dividends": 250.0 },
+      "summary_12_months": { "total_investment": 8000, "profit_percent": 4.2, "total_dividends": 150.0 },
+      "summary_6_months": { "total_investment": 4000, "profit_percent": 2.1, "total_dividends": 75.0 }
     }
   }
   ```
@@ -219,6 +219,183 @@ http://localhost:3000/api/v1/companies
   ```
 - **Errors:**
   - `500` if database error occurs
+
+---
+
+## 💰 Fixed Deposit Endpoints
+
+### 1. Create Portfolio Fixed Deposit
+
+**PUT** `/api/v1/portfolio/fd`
+
+- **Description:** Creates a new fixed deposit in the portfolio
+- **Body:**
+  ```json
+  {
+    "bankName": "ABC Bank",
+    "principalAmount": 100000,
+    "interestRate": 12.5,
+    "maturityPeriod": 12
+  }
+  ```
+- **Response:**
+  ```json
+  {
+    "message": "Fixed deposit created successfully",
+    "id": 1,
+    "bankName": "ABC Bank",
+    "principalAmount": 100000,
+    "interestRate": 12.5,
+    "maturityPeriod": 12,
+    "startDate": "2025-09-14",
+    "maturityDate": "2026-09-14",
+    "maturityValue": 112500
+  }
+  ```
+- **Errors:**
+  - `400` if missing fields or invalid values
+
+### 2. Get Portfolio Fixed Deposits
+
+**GET** `/api/v1/portfolio/fd`
+
+- **Description:** Retrieves all fixed deposits in the portfolio ordered by creation date (newest first)
+- **Response:**
+  ```json
+  {
+    "fixedDeposits": [
+      {
+        "id": 1,
+        "bankName": "ABC Bank",
+        "principalAmount": 100000,
+        "interestRate": 12.5,
+        "maturityPeriod": 12,
+        "startDate": "2025-09-14",
+        "maturityDate": "2026-09-14",
+        "maturityValue": 112500,
+        "createdAt": "2025-09-14T10:30:00.000Z"
+      }
+    ]
+  }
+  ```
+- **Errors:**
+  - `500` if database error occurs
+
+### 3. Add Fixed Deposit (Legacy)
+
+**POST** `/api/v1/fixed-deposit`
+
+- **Description:** Adds a new fixed deposit (legacy endpoint)
+- **Body:**
+  ```json
+  {
+    "bank": "ABC Bank",
+    "amount": 10000,
+    "interest_rate": 5.5,
+    "start_date": "2025-01-01",
+    "maturity_date": "2026-01-01"
+  }
+  ```
+- **Response:**
+  ```json
+  {
+    "message": "Fixed deposit added successfully",
+    "id": 1,
+    "bank": "ABC Bank",
+    "amount": 10000,
+    "interest_rate": 5.5,
+    "start_date": "2025-01-01",
+    "maturity_date": "2026-01-01"
+  }
+  ```
+- **Errors:**
+  - `400` if missing fields or invalid values
+
+### 4. Get Fixed Deposits (Legacy)
+
+**GET** `/api/v1/fixed-deposit`
+
+- **Description:** Retrieves all fixed deposits (legacy endpoint)
+- **Response:**
+  ```json
+  {
+    "fixed_deposits": [
+      {
+        "id": 1,
+        "bank": "ABC Bank",
+        "amount": 10000,
+        "interest_rate": 5.5,
+        "start_date": "2025-01-01",
+        "maturity_date": "2026-01-01"
+      }
+    ]
+  }
+  ```
+
+### 5. Get Fixed Deposit by ID (Legacy)
+
+**GET** `/api/v1/fixed-deposit/:id`
+
+- **Description:** Retrieves a fixed deposit by ID (legacy endpoint)
+- **Response:**
+  ```json
+  {
+    "id": 1,
+    "bank": "ABC Bank",
+    "amount": 10000,
+    "interest_rate": 5.5,
+    "start_date": "2025-01-01",
+    "maturity_date": "2026-01-01"
+  }
+  ```
+- **Errors:**
+  - `404` if fixed deposit not found
+
+### 6. Update Fixed Deposit (Legacy)
+
+**PUT** `/api/v1/fixed-deposit/:id`
+
+- **Description:** Updates a fixed deposit by ID (legacy endpoint)
+- **Body:**
+  ```json
+  {
+    "bank": "XYZ Bank",
+    "amount": 15000,
+    "interest_rate": 6.0,
+    "start_date": "2025-02-01",
+    "maturity_date": "2026-02-01"
+  }
+  ```
+- **Response:**
+  ```json
+  {
+    "message": "Fixed deposit updated successfully",
+    "id": 1,
+    "bank": "XYZ Bank",
+    "amount": 15000,
+    "interest_rate": 6.0,
+    "start_date": "2025-02-01",
+    "maturity_date": "2026-02-01"
+  }
+  ```
+- **Errors:**
+  - `400` if missing fields or invalid values
+  - `404` if fixed deposit not found
+
+### 7. Delete Fixed Deposit (Legacy)
+
+**DELETE** `/api/v1/fixed-deposit/:id`
+
+- **Description:** Deletes a fixed deposit by ID (legacy endpoint)
+- **Response:**
+  ```json
+  {
+    "message": "Fixed deposit deleted successfully",
+    "id": 1
+  }
+  ```
+- **Errors:**
+  - `404` if fixed deposit not found
 
 ---
 
