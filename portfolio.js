@@ -3,6 +3,43 @@ const router = express.Router();
 const db = require('./db');
 const axios = require('axios');
 
+// In-memory cache for CSE API data
+const cseDataCache = new Map();
+
+// Cache cleanup - remove entries older than 24 hours
+function cleanupCache() {
+  const now = new Date();
+  const oneDayAgo = new Date(now.getTime() - 24 * 60 * 60 * 1000);
+  
+  for (const [key, value] of cseDataCache.entries()) {
+    const cacheTime = new Date(value.timestamp);
+    if (cacheTime < oneDayAgo) {
+      cseDataCache.delete(key);
+      console.log(`Removed expired cache entry for ${key}`);
+    }
+  }
+}
+
+// Run cache cleanup every hour
+setInterval(cleanupCache, 60 * 60 * 1000);
+
+// Function to get cache statistics
+function getCacheStats() {
+  const stats = {
+    totalEntries: cseDataCache.size,
+    entries: {}
+  };
+  
+  for (const [key, value] of cseDataCache.entries()) {
+    stats.entries[key] = {
+      timestamp: value.timestamp,
+      ageMinutes: Math.round((new Date() - new Date(value.timestamp)) / (1000 * 60))
+    };
+  }
+  
+  return stats;
+}
+
 // Error handling function
 function handleDbError(res, err) {
   if (err) {
@@ -11,6 +48,92 @@ function handleDbError(res, err) {
     return true;
   }
   return false;
+}
+
+// Function to check if current time is within trading hours (weekdays 9 AM to 3 PM)
+function isTradingHours() {
+  const now = new Date();
+  const dayOfWeek = now.getDay(); // 0 = Sunday, 1 = Monday, ..., 6 = Saturday
+  const hour = now.getHours();
+  
+  // Check if it's a weekday (Monday to Friday)
+  if (dayOfWeek === 0 || dayOfWeek === 6) {
+    return false; // Weekend
+  }
+  
+  // Check if time is between 9 AM and 3 PM (15:00)
+  return hour >= 9 && hour < 15;
+}
+
+// Function to fetch stock data from CSE API or cache
+async function getStockData(symbol) {
+  const cacheKey = `${symbol}.N0000`;
+  const cachedData = cseDataCache.get(cacheKey);
+  
+  // If we're in trading hours, always call the API
+  if (isTradingHours()) {
+    console.log(`Trading hours - fetching live data for ${symbol}`);
+    try {
+      const response = await axios.post(
+        'https://www.cse.lk/api/daysTrade',
+        new URLSearchParams({ symbol: cacheKey }),
+        {
+          headers: {
+            'accept': 'application/json, text/plain, */*',
+            'content-type': 'application/x-www-form-urlencoded; charset=UTF-8'
+          }
+        }
+      );
+      
+      // Cache the response
+      cseDataCache.set(cacheKey, {
+        data: response.data,
+        timestamp: new Date().toISOString()
+      });
+      
+      return response.data;
+    } catch (error) {
+      console.error(`Error fetching live data for ${symbol}:`, error.message);
+      // If API call fails, fall back to cache if available
+      if (cachedData) {
+        console.log(`API failed - using cached data for ${symbol}`);
+        return cachedData.data;
+      }
+      throw error;
+    }
+  }
+  
+  // Outside trading hours - use cache if available
+  if (cachedData) {
+    console.log(`Outside trading hours - using cached data for ${symbol} (cached at: ${cachedData.timestamp})`);
+    return cachedData.data;
+  }
+  
+  // Cache is empty - fetch from API
+  console.log(`Cache empty - fetching data for ${symbol}`);
+  try {
+    const response = await axios.post(
+      'https://www.cse.lk/api/daysTrade',
+      new URLSearchParams({ symbol: cacheKey }),
+      {
+        headers: {
+          'accept': 'application/json, text/plain, */*',
+          'content-type': 'application/x-www-form-urlencoded; charset=UTF-8'
+        }
+      }
+    );
+    
+    // Cache the response
+    cseDataCache.set(cacheKey, {
+      data: response.data,
+      timestamp: new Date().toISOString()
+    });
+    
+    return response.data;
+  } catch (error) {
+    console.error(`Error fetching data for ${symbol}:`, error.message);
+    throw error;
+  }
 }
 
 // Add this helper function near the top of your file
@@ -57,17 +180,9 @@ router.get('/equity', async (req, res) => {
       let lastTradedPrice = null;
       let status = "ok"; // Add status field
       try {
-        const response = await axios.post(
-          'https://www.cse.lk/api/daysTrade',
-          new URLSearchParams({ symbol: `${stock.symbol}.N0000` }),
-          {
-            headers: {
-              'accept': 'application/json, text/plain, */*',
-              'content-type': 'application/x-www-form-urlencoded; charset=UTF-8'
-            }
-          }
-        );
-        const trades = Array.isArray(response.data) ? response.data : [response.data];
+        // Use the new caching function
+        const responseData = await getStockData(stock.symbol);
+        const trades = Array.isArray(responseData) ? responseData : [responseData];
         const validTrades = trades.filter(t => t && t.time);
 
         const tradesWithModifiedTime = validTrades.map(trade => ({
@@ -518,6 +633,30 @@ router.get('/fd', (req, res) => {
       });
     }
   );
+});
+
+// GET /api/v1/portfolio/cache/status - Debug endpoint to view cache status
+router.get('/cache/status', (req, res) => {
+  const stats = getCacheStats();
+  const tradingHours = isTradingHours();
+  
+  res.json({
+    isTradingHours: tradingHours,
+    cache: stats,
+    message: tradingHours ? 'Currently in trading hours - API calls will be made' : 'Outside trading hours - using cache when available'
+  });
+});
+
+// DELETE /api/v1/portfolio/cache - Debug endpoint to clear cache
+router.delete('/cache', (req, res) => {
+  const clearedEntries = cseDataCache.size;
+  cseDataCache.clear();
+  console.log(`Cache cleared - removed ${clearedEntries} entries`);
+  
+  res.json({
+    message: 'Cache cleared successfully',
+    clearedEntries
+  });
 });
 
 module.exports = router;
