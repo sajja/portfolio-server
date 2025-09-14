@@ -635,6 +635,81 @@ router.get('/fd', (req, res) => {
   );
 });
 
+// PUT /api/v1/portfolio/fx
+router.put('/fx', (req, res) => {
+  const { bankName, interestRate, amount, currency } = req.body;
+  
+  // Validate input data
+  if (!bankName || typeof bankName !== 'string' || bankName.trim() === '') {
+    return res.status(400).json({ 
+      error: 'Bank name is required and must be a non-empty string.' 
+    });
+  }
+  
+  if (!interestRate || typeof interestRate !== 'number' || interestRate <= 0) {
+    return res.status(400).json({ 
+      error: 'Interest rate is required and must be a positive number.' 
+    });
+  }
+  
+  if (!amount || typeof amount !== 'number' || amount <= 0) {
+    return res.status(400).json({ 
+      error: 'Amount is required and must be a positive number.' 
+    });
+  }
+  
+  if (!currency || typeof currency !== 'string' || currency.trim() === '') {
+    return res.status(400).json({ 
+      error: 'Currency is required and must be a non-empty string.' 
+    });
+  }
+  
+  const currentDate = new Date().toISOString().split('T')[0]; // YYYY-MM-DD format
+  
+  // Insert FX record into deposits table
+  db.run(
+    'INSERT INTO deposits (bank_name, amount, interest_rate, currency, date) VALUES (?, ?, ?, ?, ?)',
+    [bankName.trim(), amount, interestRate, currency.trim().toUpperCase(), currentDate],
+    function(err) {
+      if (handleDbError(res, err)) return;
+      
+      res.status(201).json({
+        message: 'FX deposit created successfully',
+        id: this.lastID,
+        bankName: bankName.trim(),
+        interestRate: interestRate,
+        amount: amount,
+        currency: currency.trim().toUpperCase(),
+        date: currentDate
+      });
+    }
+  );
+});
+
+// GET /api/v1/portfolio/fx
+router.get('/fx', (req, res) => {
+  // Get FX deposits from the deposits table
+  db.all(
+    'SELECT id, bank_name, amount, interest_rate, currency, date, created_at FROM deposits ORDER BY created_at DESC',
+    [],
+    (err, fxDeposits) => {
+      if (handleDbError(res, err)) return;
+      
+      res.status(200).json({
+        fxDeposits: fxDeposits.map(fx => ({
+          id: fx.id,
+          bankName: fx.bank_name,
+          interestRate: fx.interest_rate,
+          amount: fx.amount,
+          currency: fx.currency,
+          date: fx.date,
+          createdAt: fx.created_at
+        }))
+      });
+    }
+  );
+});
+
 // GET /api/v1/portfolio/cache/status - Debug endpoint to view cache status
 router.get('/cache/status', (req, res) => {
   const stats = getCacheStats();

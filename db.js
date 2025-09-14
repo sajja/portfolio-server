@@ -144,6 +144,25 @@ db.run(`
   }
 });
 
+// Create deposits table for FX deposits
+db.run(`
+  CREATE TABLE IF NOT EXISTS deposits (
+    id INTEGER PRIMARY KEY AUTOINCREMENT,
+    bank_name TEXT NOT NULL,
+    amount REAL NOT NULL,
+    interest_rate REAL NOT NULL,
+    currency TEXT NOT NULL,
+    date TEXT NOT NULL,
+    created_at DATETIME DEFAULT CURRENT_TIMESTAMP
+  )
+`, (err) => {
+  if (err) {
+    console.error('Error creating deposits table:', err);
+  } else {
+    console.log('deposits table ready');
+  }
+});
+
 // Create an index on the 'date' column of the expenses table for faster queries
 function createExpensesDateIndex() {
   db.run(`CREATE INDEX IF NOT EXISTS idx_expenses_date ON expenses(date)`);
