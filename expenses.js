@@ -209,6 +209,7 @@ router.delete('/admin', (req, res) => {
   }
   
   const monthStr = month.toString().padStart(2, '0');
+  console.log(`DELETE request received for expense data - Year: ${year}, Month: ${monthStr}`);
   
   // Check if the year/month exists
   db.get('SELECT 1 FROM expense_meta WHERE year = ? AND month = ?', [year, monthStr], (err, row) => {

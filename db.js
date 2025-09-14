@@ -50,8 +50,6 @@ CREATE TABLE if not exists current_stock_values (
   }
 });
 
-
-
 db.run(`
   CREATE TABLE IF NOT EXISTS transactions (
     id INTEGER PRIMARY KEY AUTOINCREMENT,
@@ -93,6 +91,24 @@ db.run(`
 `, (err) => {
   if (err) {
     console.error('Error creating expense_meta table:', err);
+  }
+});
+
+// Create dividend_history table
+db.run(`
+  CREATE TABLE IF NOT EXISTS dividend_history (
+    id INTEGER PRIMARY KEY AUTOINCREMENT,
+    symbol TEXT NOT NULL,
+    amount REAL NOT NULL,
+    date TEXT NOT NULL,
+    created_at DATETIME DEFAULT CURRENT_TIMESTAMP,
+    FOREIGN KEY (symbol) REFERENCES stocks(symbol)
+  )
+`, (err) => {
+  if (err) {
+    console.error('Error creating dividend_history table:', err);
+  } else {
+    console.log('dividend_history table ready');
   }
 });
 

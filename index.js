@@ -14,6 +14,18 @@ app.use((req, res, next) => {
   }
   next();
 });
+
+app.use((req, res, next) => {
+  if (req.method === 'POST') {
+    const originalSend = res.send;
+    res.send = function (body) {
+      console.log(`POST ${req.originalUrl} response body:`, body);
+      originalSend.apply(res, arguments);
+    };
+  }
+  next();
+});
+
 app.use((req, res, next) => {
   res.setHeader('Access-Control-Allow-Origin', '*');
   res.setHeader('Access-Control-Allow-Methods', 'GET,POST,PUT,DELETE,OPTIONS');

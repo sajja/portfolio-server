@@ -227,6 +227,57 @@ router.get('/equity/transactions', (req, res) => {
   });
 });
 
+// GET /api/v1/portfolio/equity/dividends
+router.get('/equity/dividends', (req, res) => {
+  const { from_date, to_date } = req.query;
+  
+  // Default to_date is current date
+  const currentDate = new Date().toISOString().split('T')[0]; // YYYY-MM-DD format
+  const toDate = to_date || currentDate;
+  
+  // Build SQL query with optional date filtering
+  let sql = 'SELECT id, symbol, amount, date, created_at FROM dividend_history';
+  const params = [];
+  
+  if (from_date || to_date) {
+    sql += ' WHERE';
+    const conditions = [];
+    
+    if (from_date) {
+      conditions.push(' date >= ?');
+      params.push(from_date);
+    }
+    
+    if (to_date) {
+      conditions.push(' date <= ?');
+      params.push(toDate);
+    }
+    
+    sql += conditions.join(' AND');
+  }
+  
+  sql += ' ORDER BY date DESC, created_at DESC';
+  
+  db.all(sql, params, (err, dividends) => {
+    if (handleDbError(res, err)) return;
+    
+    res.status(200).json({
+      dividends: dividends.map(div => ({
+        id: div.id,
+        symbol: div.symbol,
+        amount: div.amount,
+        date: div.date,
+        created_at: div.created_at
+      })),
+      filters: {
+        from_date: from_date || null,
+        to_date: toDate
+      },
+      total_records: dividends.length
+    });
+  });
+});
+
 // GET /api/v1/portfolio/equity/:name
 router.get('/equity/:name', (req, res) => {
   const name = req.params.name;
@@ -304,6 +355,56 @@ router.get('/summary', (req, res) => {
         summary_6_months: calcSummary(tx6)
       }
     });
+  });
+});
+
+// PUT /api/v1/portfolio/equity/:name/dividend
+router.put('/equity/:name/dividend', (req, res) => {
+  const { name } = req.params;
+  const { amount, date } = req.body;
+  
+  if (!amount || !date || amount <= 0) {
+    return res.status(400).json({ 
+      error: 'Dividend amount (positive number) and date are required.' 
+    });
+  }
+  
+  // Validate date format (YYYY-MM-DD)
+  const dateRegex = /^\d{4}-\d{2}-\d{2}$/;
+  if (!dateRegex.test(date)) {
+    return res.status(400).json({ 
+      error: 'Date must be in YYYY-MM-DD format.' 
+    });
+  }
+  
+  const symbol = name.toUpperCase();
+  
+  // Check if stock exists in portfolio
+  db.get('SELECT symbol FROM stocks WHERE symbol = ?', [symbol], (err, stock) => {
+    if (handleDbError(res, err)) return;
+    
+    if (!stock) {
+      return res.status(404).json({ 
+        error: `Stock ${symbol} not found in portfolio.` 
+      });
+    }
+    
+    // Insert dividend record
+    db.run(
+      'INSERT INTO dividend_history (symbol, amount, date) VALUES (?, ?, ?)',
+      [symbol, amount, date],
+      function(err) {
+        if (handleDbError(res, err)) return;
+        
+        res.status(200).json({
+          message: 'Dividend recorded successfully',
+          symbol: symbol,
+          amount: amount,
+          date: date,
+          id: this.lastID
+        });
+      }
+    );
   });
 });
 

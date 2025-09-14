@@ -155,6 +155,73 @@ http://localhost:3000/api/v1/companies
 
 ---
 
+### 9. Record Dividend Payout
+
+**PUT** `/api/v1/portfolio/equity/:name/dividend`
+
+- **Description:** Records a dividend payout for an equity
+- **Body:**
+  ```json
+  {
+    "amount": 2.50,
+    "date": "2025-06-30"
+  }
+  ```
+- **Response:**
+  ```json
+  {
+    "message": "Dividend recorded successfully",
+    "symbol": "SLT",
+    "amount": 2.50,
+    "date": "2025-06-30",
+    "id": 1
+  }
+  ```
+- **Errors:**
+  - `400` if missing fields or invalid values
+  - `404` if stock not found in portfolio
+
+---
+
+### 10. Get Dividend History
+
+**GET** `/api/v1/portfolio/equity/dividends[?from_date=YYYY-MM-DD&to_date=YYYY-MM-DD]`
+
+- **Description:** Retrieves dividend payout history sorted by payment date (newest first)
+- **Query Parameters:**
+  - `from_date`: Optional - Start date filter (YYYY-MM-DD format)
+  - `to_date`: Optional - End date filter (YYYY-MM-DD format, defaults to current date)
+- **Response:**
+  ```json
+  {
+    "dividends": [
+      {
+        "id": 2,
+        "symbol": "SLT",
+        "amount": 3.00,
+        "date": "2025-09-15",
+        "created_at": "2025-09-14T10:30:00.000Z"
+      },
+      {
+        "id": 1,
+        "symbol": "ABC",
+        "amount": 2.50,
+        "date": "2025-06-30",
+        "created_at": "2025-06-25T14:20:00.000Z"
+      }
+    ],
+    "filters": {
+      "from_date": "2025-01-01",
+      "to_date": "2025-09-14"
+    },
+    "total_records": 2
+  }
+  ```
+- **Errors:**
+  - `500` if database error occurs
+
+---
+
 ## 💰 Expense Endpoints
 
 ### 1. Import Expenses
