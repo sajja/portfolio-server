@@ -2,6 +2,9 @@ const express = require('express');
 const app = express();
 const PORT = 3000;
 
+// --- Import and use rateService ---
+const rateService = require('./rateService');
+
 // Import and start the DividentSyncJob scheduler
 const DividentSyncJob = require('./DividentSyncJob');
 DividentSyncJob.startScheduler();
@@ -43,4 +46,8 @@ app.use('/api/v1/expense', require('./expenses'));
 
 app.listen(PORT, () => {
   console.log(`Server running on http://localhost:${PORT}`);
+  // Initial fetch of the USD rate when the server starts
+  rateService.refreshUsdRate();
+  // Schedule the daily 9 AM refresh
+  rateService.scheduleDailyRateRefresh();
 });

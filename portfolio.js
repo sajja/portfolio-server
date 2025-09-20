@@ -2,6 +2,7 @@ const express = require('express');
 const router = express.Router();
 const db = require('./db');
 const axios = require('axios');
+const { usdBuyingRateCache } = require('./rateService');
 
 // In-memory cache for CSE API data
 const cseDataCache = new Map();
@@ -159,6 +160,21 @@ function modifyTime(timeStr) {
   }
   return modified;
 }
+
+// --- New Util Endpoint for USD Rate ---
+router.get('/util/rates/usd', (req, res) => {
+  if (usdBuyingRateCache.rate !== null) {
+    res.json({
+      rate: usdBuyingRateCache.rate,
+      lastUpdated: usdBuyingRateCache.timestamp,
+    });
+  } else {
+    res.status(503).json({ 
+      error: 'USD rate is not available at the moment. Please try again later.' 
+    });
+  }
+});
+// --- End of New Util Endpoint ---
 
 // GET /api/v1/portfolio/equity
 router.get('/equity', async (req, res) => {
