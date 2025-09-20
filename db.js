@@ -163,6 +163,41 @@ db.run(`
   }
 });
 
+// Create index_fund table
+db.run(`
+  CREATE TABLE IF NOT EXISTS index_fund (
+    id INTEGER PRIMARY KEY AUTOINCREMENT,
+    amount REAL NOT NULL,
+    rate REAL NOT NULL,
+    fund_holder TEXT NOT NULL,
+    fund_type TEXT NOT NULL,
+    created_at DATETIME DEFAULT CURRENT_TIMESTAMP
+  )
+`, (err) => {
+  if (err) {
+    console.error('Error creating index_fund table:', err);
+  } else {
+    console.log('index_fund table ready');
+    // Rename bank column to fund_holder if it exists
+    db.all("PRAGMA table_info(index_fund)", (err, columns) => {
+      if (err) {
+        console.error("Error getting table info for index_fund:", err);
+        return;
+      }
+      const hasBankColumn = columns.some(col => col.name === 'bank');
+      if (hasBankColumn) {
+        db.run('ALTER TABLE index_fund RENAME COLUMN bank TO fund_holder', (err) => {
+          if (err) {
+            console.error('Error renaming column bank to fund_holder:', err);
+          } else {
+            console.log('Renamed column bank to fund_holder in index_fund table.');
+          }
+        });
+      }
+    });
+  }
+});
+
 // Create an index on the 'date' column of the expenses table for faster queries
 function createExpensesDateIndex() {
   db.run(`CREATE INDEX IF NOT EXISTS idx_expenses_date ON expenses(date)`);

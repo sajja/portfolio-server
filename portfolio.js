@@ -726,6 +726,76 @@ router.get('/fx', (req, res) => {
   );
 });
 
+// PUT /api/v1/portfolio/indexfund
+router.put('/indexfund', (req, res) => {
+  const { amount, rate, fundHolder, fundType } = req.body;
+
+  // Validate input data
+  if (!amount || typeof amount !== 'number' || amount <= 0) {
+    return res.status(400).json({ 
+      error: 'Amount is required and must be a positive number.' 
+    });
+  }
+
+  if (!rate || typeof rate !== 'number' || rate <= 0) {
+    return res.status(400).json({ 
+      error: 'Rate is required and must be a positive number.' 
+    });
+  }
+
+  if (!fundHolder || typeof fundHolder !== 'string' || fundHolder.trim() === '') {
+    return res.status(400).json({ 
+      error: 'Fund holder is required and must be a non-empty string.' 
+    });
+  }
+
+  if (!fundType || typeof fundType !== 'string' || fundType.trim() === '') {
+    return res.status(400).json({ 
+      error: 'Fund type is required and must be a non-empty string.' 
+    });
+  }
+
+  // Insert index fund record
+  db.run(
+    'INSERT INTO index_fund (amount, rate, fund_holder, fund_type) VALUES (?, ?, ?, ?)',
+    [amount, rate, fundHolder.trim(), fundType.trim()],
+    function(err) {
+      if (handleDbError(res, err)) return;
+      
+      res.status(201).json({
+        message: 'Index fund created successfully',
+        id: this.lastID,
+        amount,
+        rate,
+        fundHolder: fundHolder.trim(),
+        fundType: fundType.trim()
+      });
+    }
+  );
+});
+
+// GET /api/v1/portfolio/indexfund
+router.get('/indexfund', (req, res) => {
+  db.all(
+    'SELECT id, amount, rate, fund_holder, fund_type, created_at FROM index_fund ORDER BY created_at DESC',
+    [],
+    (err, indexFunds) => {
+      if (handleDbError(res, err)) return;
+      
+      res.status(200).json({
+        indexFunds: indexFunds.map(fund => ({
+          id: fund.id,
+          amount: fund.amount,
+          rate: fund.rate,
+          fundHolder: fund.fund_holder,
+          fundType: fund.fund_type,
+          createdAt: fund.created_at
+        }))
+      });
+    }
+  );
+});
+
 // GET /api/v1/portfolio/cache/status - Debug endpoint to view cache status
 router.get('/cache/status', (req, res) => {
   const stats = getCacheStats();
