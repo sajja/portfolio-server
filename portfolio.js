@@ -796,6 +796,49 @@ router.get('/indexfund', (req, res) => {
   );
 });
 
+// PUT /api/v1/portfolio/indexfund/:id
+router.put('/indexfund/:id', (req, res) => {
+  const { id } = req.params;
+  const { amount, rate, fundHolder, fundType } = req.body;
+
+  if (isNaN(id)) {
+    return res.status(400).json({ error: 'Invalid ID format.' });
+  }
+
+  // For PUT, we expect all fields to be present for a full update
+  if (amount === undefined || rate === undefined || fundHolder === undefined || fundType === undefined) {
+    return res.status(400).json({ error: 'All fields (amount, rate, fundHolder, fundType) are required for an update.' });
+  }
+
+  if (typeof amount !== 'number' || amount <= 0) {
+    return res.status(400).json({ error: 'Amount must be a positive number.' });
+  }
+
+  if (typeof rate !== 'number' || rate <= 0) {
+    return res.status(400).json({ error: 'Rate must be a positive number.' });
+  }
+
+  if (typeof fundHolder !== 'string' || fundHolder.trim() === '') {
+    return res.status(400).json({ error: 'Fund holder must be a non-empty string.' });
+  }
+
+  if (typeof fundType !== 'string' || fundType.trim() === '') {
+    return res.status(400).json({ error: 'Fund type must be a non-empty string.' });
+  }
+
+  const sql = `UPDATE index_fund SET amount = ?, rate = ?, fund_holder = ?, fund_type = ? WHERE id = ?`;
+  const params = [amount, rate, fundHolder.trim(), fundType.trim(), id];
+
+  db.run(sql, params, function (err) {
+    if (handleDbError(res, err)) return;
+    if (this.changes === 0) {
+      return res.status(404).json({ error: 'Index fund not found.' });
+    }
+    res.status(200).json({ message: 'Index fund updated successfully.' });
+  });
+});
+
+
 // GET /api/v1/portfolio/cache/status - Debug endpoint to view cache status
 router.get('/cache/status', (req, res) => {
   const stats = getCacheStats();
