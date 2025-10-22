@@ -7,39 +7,7 @@ const { usdBuyingRateCache } = require('./rateService');
 // In-memory cache for CSE API data
 const cseDataCache = new Map();
 
-// Cache cleanup - remove entries older than 24 hours
-function cleanupCache() {
-  const now = new Date();
-  const oneDayAgo = new Date(now.getTime() - 24 * 60 * 60 * 1000);
-  
-  for (const [key, value] of cseDataCache.entries()) {
-    const cacheTime = new Date(value.timestamp);
-    if (cacheTime < oneDayAgo) {
-      cseDataCache.delete(key);
-      console.log(`Removed expired cache entry for ${key}`);
-    }
-  }
-}
 
-// Run cache cleanup every hour
-setInterval(cleanupCache, 60 * 60 * 1000);
-
-// Function to get cache statistics
-function getCacheStats() {
-  const stats = {
-    totalEntries: cseDataCache.size,
-    entries: {}
-  };
-  
-  for (const [key, value] of cseDataCache.entries()) {
-    stats.entries[key] = {
-      timestamp: value.timestamp,
-      ageMinutes: Math.round((new Date() - new Date(value.timestamp)) / (1000 * 60))
-    };
-  }
-  
-  return stats;
-}
 
 // Error handling function
 function handleDbError(res, err) {
@@ -51,48 +19,58 @@ function handleDbError(res, err) {
   return false;
 }
 
-// Function to check if current time is within trading hours (weekdays 9 AM to 3 PM)
+// Function to check if current time is within trading hours (9:15 AM to 2:30 PM on weekdays)
 function isTradingHours() {
   const now = new Date();
   const dayOfWeek = now.getDay(); // 0 = Sunday, 1 = Monday, ..., 6 = Saturday
   const hour = now.getHours();
+  const minute = now.getMinutes();
   
   // Check if it's a weekday (Monday to Friday)
   if (dayOfWeek === 0 || dayOfWeek === 6) {
     return false; // Weekend
   }
   
-  // Check if time is between 9 AM and 3 PM (15:00)
-  return hour >= 9 && hour < 15;
+  // Check if time is between 9:15 AM and 2:30 PM
+  const currentTimeInMinutes = hour * 60 + minute;
+  const startTime = 9 * 60 + 15; // 9:15 AM in minutes
+  const endTime = 14 * 60 + 30;  // 2:30 PM in minutes
+  
+  return currentTimeInMinutes >= startTime && currentTimeInMinutes <= endTime;
 }
 
-// Function to fetch stock data from CSE API or cache
+// Function to fetch stock data from CSE API with caching
 async function getStockData(symbol) {
-  const cacheKey = `${symbol}.N0000`;
-  const cachedData = cseDataCache.get(cacheKey);
+  const cachedData = cseDataCache.get(symbol);
   
   // If we're in trading hours, always call the API
   if (isTradingHours()) {
     console.log(`Trading hours - fetching live data for ${symbol}`);
     try {
       const response = await axios.post(
-        'https://www.cse.lk/api/daysTrade',
-        new URLSearchParams({ symbol: cacheKey }),
+        'https://www.cse.lk/api/companyInfoSummery',
+        new URLSearchParams({ symbol: symbol }),
         {
           headers: {
             'accept': 'application/json, text/plain, */*',
+            'accept-language': 'en',
             'content-type': 'application/x-www-form-urlencoded; charset=UTF-8'
           }
         }
       );
       
+      const stockData = {
+        lastTradedPrice: response.data.reqSymbolInfo?.lastTradedPrice || null,
+        previousClose: response.data.reqSymbolInfo?.previousClose || null
+      };
+      
       // Cache the response
-      cseDataCache.set(cacheKey, {
-        data: response.data,
+      cseDataCache.set(symbol, {
+        data: stockData,
         timestamp: new Date().toISOString()
       });
       
-      return response.data;
+      return stockData;
     } catch (error) {
       console.error(`Error fetching live data for ${symbol}:`, error.message);
       // If API call fails, fall back to cache if available
@@ -110,56 +88,40 @@ async function getStockData(symbol) {
     return cachedData.data;
   }
   
-  // Cache is empty - fetch from API
-  console.log(`Cache empty - fetching data for ${symbol}`);
+  // Cache is empty and outside trading hours - fetch from API once and cache it
+  console.log(`Cache empty and outside trading hours - fetching data for ${symbol}`);
   try {
     const response = await axios.post(
-      'https://www.cse.lk/api/daysTrade',
-      new URLSearchParams({ symbol: cacheKey }),
+      'https://www.cse.lk/api/companyInfoSummery',
+      new URLSearchParams({ symbol: symbol }),
       {
         headers: {
           'accept': 'application/json, text/plain, */*',
+          'accept-language': 'en',
           'content-type': 'application/x-www-form-urlencoded; charset=UTF-8'
         }
       }
     );
     
+    const stockData = {
+      lastTradedPrice: response.data.reqSymbolInfo?.lastTradedPrice || null,
+      previousClose: response.data.reqSymbolInfo?.previousClose || null
+    };
+    
     // Cache the response
-    cseDataCache.set(cacheKey, {
-      data: response.data,
+    cseDataCache.set(symbol, {
+      data: stockData,
       timestamp: new Date().toISOString()
     });
     
-    return response.data;
+    return stockData;
   } catch (error) {
     console.error(`Error fetching data for ${symbol}:`, error.message);
     throw error;
   }
 }
 
-// Add this helper function near the top of your file
-function modifyTime(timeStr) {
-  // timeStr: "HH:MM:SS"
-  const [h, m, s] = timeStr.split(':').map(Number);
 
-  // Check if time is less than 09:30:00
-  let date;
-  date = new Date(2000, 0, 1, h, m, s);
-  if (h < 9 || (h === 9 && m < 30)) {
-    // Add 12 hours
-    date.setHours(date.getHours() + 12);
-  } 
-
-  const modified = date.toTimeString().slice(0, 8); // "HH:MM:SS"
-
-  // If modified time is over 14:30:00, throw error and print original time
-  const [mh, mm, ms] = modified.split(':').map(Number);
-  if (mh > 14 || (mh === 14 && mm > 30)) {
-    console.error(`Time overflow: original time was ${timeStr} new time ${modified}}` );
-    throw new Error(`Modified time exceeds 14:30:00 for original time ${timeStr}`);
-  }
-  return modified;
-}
 
 // --- New Util Endpoint for USD Rate ---
 router.get('/util/rates/usd', (req, res) => {
@@ -196,25 +158,13 @@ router.get('/equity', async (req, res) => {
       let lastTradedPrice = null;
       let status = "ok"; // Add status field
       try {
-        // Use the new caching function
-        const responseData = await getStockData(stock.symbol);
-        const trades = Array.isArray(responseData) ? responseData : [responseData];
-        const validTrades = trades.filter(t => t && t.time);
-
-        const tradesWithModifiedTime = validTrades.map(trade => ({
-          ...trade,
-          modifiedTime: modifyTime(trade.time)
-        }));
-
-        tradesWithModifiedTime.sort((a, b) => (a.modifiedTime < b.modifiedTime ? 1 : -1));
-
-        if (tradesWithModifiedTime.length > 0) {
-          lastTradedPrice = tradesWithModifiedTime[0].price;
-          console.log(`Symbol: ${stock.symbol}, Last traded price: ${lastTradedPrice}, Modified time: ${tradesWithModifiedTime[0].modifiedTime}`);
-        }
+        const stockData = await getStockData(stock.symbol);
+        // Use lastTradedPrice if available, otherwise fallback to previousClose
+        lastTradedPrice = stockData.lastTradedPrice || stockData.previousClose;
+        console.log(`Symbol: ${stock.symbol}, Last traded price: ${stockData.lastTradedPrice}, Previous close: ${stockData.previousClose}, Using: ${lastTradedPrice}`);
       } catch (e) {
-        console.log(`Symbol: ${stock.symbol}, Error fetching latest trade`);
-        status = "error"; // Optionally set to error if needed
+        console.log(`Symbol: ${stock.symbol}, Error fetching stock data:`, e.message);
+        status = "error";
       }
       results.push({
         symbol: stock.symbol,
@@ -839,15 +789,27 @@ router.put('/indexfund/:id', (req, res) => {
 });
 
 
+
+
 // GET /api/v1/portfolio/cache/status - Debug endpoint to view cache status
 router.get('/cache/status', (req, res) => {
-  const stats = getCacheStats();
   const tradingHours = isTradingHours();
+  const cacheEntries = {};
+  
+  for (const [symbol, data] of cseDataCache.entries()) {
+    cacheEntries[symbol] = {
+      timestamp: data.timestamp,
+      ageMinutes: Math.round((new Date() - new Date(data.timestamp)) / (1000 * 60)),
+      lastTradedPrice: data.data.lastTradedPrice,
+      previousClose: data.data.previousClose
+    };
+  }
   
   res.json({
     isTradingHours: tradingHours,
-    cache: stats,
-    message: tradingHours ? 'Currently in trading hours - API calls will be made' : 'Outside trading hours - using cache when available'
+    totalCacheEntries: cseDataCache.size,
+    cacheEntries: cacheEntries,
+    message: tradingHours ? 'Currently in trading hours (9:15 AM - 2:30 PM) - API calls will be made' : 'Outside trading hours - using cache when available'
   });
 });
 
