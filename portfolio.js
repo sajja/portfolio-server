@@ -184,19 +184,24 @@ router.post('/equity/:eqtName', (req, res) => {
   const { comment } = req.body;
   const eqtName = req.params.eqtName.toUpperCase();
 
-  if (!comment || !eqtName) {
-    return res.status(400).json({ error: 'Missing required field: comment or eqtName' });
+  if (!eqtName) {
+    return res.status(400).json({ error: 'Missing required field: eqtName' });
   }
+
+  // Allow empty string to clear comment, use null for empty strings
+  const commentValue = (comment === undefined) ? null : (comment.trim() === '' ? null : comment.trim());
 
   db.run(
     'UPDATE stocks SET comment = ? WHERE symbol = ?',
-    [comment, eqtName],
+    [commentValue, eqtName],
     function (err) {
       if (handleDbError(res, err)) return;
       if (this.changes === 0) {
         return res.status(404).json({ error: 'Equity not found' });
       }
-      res.json({ message: 'Comment saved successfully', eqtName, comment });
+      
+      const message = commentValue ? 'Comment saved successfully' : 'Comment cleared successfully';
+      res.json({ message, eqtName, comment: commentValue });
     }
   );
 });
@@ -788,8 +793,179 @@ router.put('/indexfund/:id', (req, res) => {
   });
 });
 
+// POST /api/v1/portfolio/bonds
+router.post('/bonds', (req, res) => {
+  const { issuer, bondType, amount, couponRate, issueDate, maturityDate } = req.body;
+  
+  // Validate required fields
+  if (!issuer || typeof issuer !== 'string' || issuer.trim() === '') {
+    return res.status(400).json({ 
+      error: 'Issuer is required and must be a non-empty string.' 
+    });
+  }
+  
+  if (!bondType || typeof bondType !== 'string' || bondType.trim() === '') {
+    return res.status(400).json({ 
+      error: 'Bond type is required and must be a non-empty string.' 
+    });
+  }
+  
+  // Validate bond type (Treasury Bonds or Corporate Debentures)
+  const validBondTypes = ['Treasury Bond', 'Corporate Debenture'];
+  if (!validBondTypes.includes(bondType)) {
+    return res.status(400).json({ 
+      error: 'Bond type must be either "Treasury Bond" or "Corporate Debenture".' 
+    });
+  }
+  
+  if (!amount || typeof amount !== 'number' || amount <= 0) {
+    return res.status(400).json({ 
+      error: 'Amount is required and must be a positive number.' 
+    });
+  }
+  
+  if (!couponRate || typeof couponRate !== 'number' || couponRate <= 0) {
+    return res.status(400).json({ 
+      error: 'Coupon rate is required and must be a positive number.' 
+    });
+  }
+  
+  if (!issueDate || !maturityDate) {
+    return res.status(400).json({ 
+      error: 'Issue date and maturity date are required.' 
+    });
+  }
+  
+  // Validate date format (YYYY-MM-DD)
+  const dateRegex = /^\d{4}-\d{2}-\d{2}$/;
+  if (!dateRegex.test(issueDate) || !dateRegex.test(maturityDate)) {
+    return res.status(400).json({ 
+      error: 'Dates must be in YYYY-MM-DD format.' 
+    });
+  }
+  
+  // Calculate maturity value (simple interest calculation using coupon rate)
+  const issueDateTime = new Date(issueDate);
+  const maturityDateTime = new Date(maturityDate);
+  const yearsDiff = (maturityDateTime - issueDateTime) / (1000 * 60 * 60 * 24 * 365.25);
+  const interest = (amount * couponRate * yearsDiff) / 100;
+  const maturityValue = Math.round((amount + interest) * 100) / 100;
+  
+  // Insert bond record
+  db.run(
+    'INSERT INTO bonds (issuer, bond_type, amount, coupon_rate, issue_date, maturity_date, maturity_value) VALUES (?, ?, ?, ?, ?, ?, ?)',
+    [issuer.trim(), bondType, amount, couponRate, issueDate, maturityDate, maturityValue],
+    function(err) {
+      if (handleDbError(res, err)) return;
+      
+      res.status(201).json({
+        message: 'Bond created successfully',
+        id: this.lastID,
+        issuer: issuer.trim(),
+        bondType: bondType,
+        amount: amount,
+        couponRate: couponRate,
+        issueDate: issueDate,
+        maturityDate: maturityDate,
+        maturityValue: maturityValue
+      });
+    }
+  );
+});
 
+// GET /api/v1/portfolio/bonds
+router.get('/bonds', (req, res) => {
+  // Check if user wants dummy data or real data
+  const useDummyData = req.query.dummy === 'true';
+  
+  if (useDummyData) {
+    // Return dummy data for Treasury Bonds and Corporate Debentures
+    const dummyBonds = [
+    {
+      id: 1,
+      issuer: "Government of Sri Lanka",
+      bondType: "Treasury Bond",
+      amount: 500000,
+      couponRate: 8.5,
+      issueDate: "2025-01-15",
+      maturityDate: "2030-01-15",
+      maturityValue: 712500,
+      createdAt: "2025-10-22T10:30:00.000Z"
+    },
+    {
+      id: 2,
+      issuer: "Central Bank of Sri Lanka",
+      bondType: "Treasury Bond",
+      amount: 1000000,
+      couponRate: 9.2,
+      issueDate: "2024-06-01",
+      maturityDate: "2029-06-01",
+      maturityValue: 1460000,
+      createdAt: "2025-10-21T14:20:00.000Z"
+    },
+    {
+      id: 3,
+      issuer: "ABC Corporation Ltd",
+      bondType: "Corporate Debenture",
+      amount: 250000,
+      couponRate: 12.0,
+      issueDate: "2025-02-01",
+      maturityDate: "2028-02-01",
+      maturityValue: 340000,
+      createdAt: "2025-10-20T09:15:00.000Z"
+    },
+    {
+      id: 4,
+      issuer: "XYZ Holdings PLC",
+      bondType: "Corporate Debenture",
+      amount: 750000,
+      couponRate: 11.5,
+      issueDate: "2024-12-15",
+      maturityDate: "2027-12-15",
+      maturityValue: 1008750,
+      createdAt: "2025-10-19T16:45:00.000Z"
+    },
+    {
+      id: 5,
+      issuer: "Ministry of Finance",
+      bondType: "Treasury Bond",
+      amount: 2000000,
+      couponRate: 7.8,
+      issueDate: "2025-03-01",
+      maturityDate: "2035-03-01",
+      maturityValue: 3560000,
+      createdAt: "2025-10-18T11:20:00.000Z"
+    }
+  ];
 
+    res.status(200).json({
+      bonds: dummyBonds
+    });
+  } else {
+    // Query real data from database
+    db.all(
+      'SELECT id, issuer, bond_type, amount, coupon_rate, issue_date, maturity_date, maturity_value, created_at FROM bonds ORDER BY created_at DESC',
+      [],
+      (err, bonds) => {
+        if (handleDbError(res, err)) return;
+        
+        res.status(200).json({
+          bonds: bonds.map(bond => ({
+            id: bond.id,
+            issuer: bond.issuer,
+            bondType: bond.bond_type,
+            amount: bond.amount,
+            couponRate: bond.coupon_rate,
+            issueDate: bond.issue_date,
+            maturityDate: bond.maturity_date,
+            maturityValue: bond.maturity_value,
+            createdAt: bond.created_at
+          }))
+        });
+      }
+    );
+  }
+});
 
 // GET /api/v1/portfolio/cache/status - Debug endpoint to view cache status
 router.get('/cache/status', (req, res) => {
