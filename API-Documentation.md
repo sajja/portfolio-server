@@ -399,6 +399,85 @@ http://localhost:3000/api/v1/companies
 
 ---
 
+## 🏦 Bonds/Debentures Endpoints
+
+### 1. Create Bond/Debenture
+
+**POST** `/api/v1/portfolio/bonds`
+
+- **Description:** Creates a new bond or debenture in the portfolio. Supports Treasury Bonds and Corporate Debentures.
+- **Body:**
+  ```json
+  {
+    "issuer": "Government of Sri Lanka",
+    "bondType": "Treasury Bond",
+    "amount": 500000,
+    "couponRate": 8.5,
+    "issueDate": "2025-01-15",
+    "maturityDate": "2030-01-15"
+  }
+  ```
+- **Response:**
+  ```json
+  {
+    "message": "Bond created successfully",
+    "id": 1,
+    "issuer": "Government of Sri Lanka",
+    "bondType": "Treasury Bond",
+    "amount": 500000,
+    "couponRate": 8.5,
+    "issueDate": "2025-01-15",
+    "maturityDate": "2030-01-15",
+    "maturityValue": 712500
+  }
+  ```
+- **Valid Bond Types:**
+  - `"Treasury Bond"` - Government treasury bonds
+  - `"Corporate Debenture"` - Corporate debentures
+- **Errors:**
+  - `400` if missing fields, invalid values, or invalid bond type
+
+### 2. Get All Bonds/Debentures
+
+**GET** `/api/v1/portfolio/bonds[?dummy=true]`
+
+- **Description:** Retrieves all bonds and debentures in the portfolio ordered by creation date (newest first)
+- **Query Parameters:**
+  - `dummy=true` - Optional. Returns sample dummy data instead of database records
+- **Response:**
+  ```json
+  {
+    "bonds": [
+      {
+        "id": 1,
+        "issuer": "Government of Sri Lanka",
+        "bondType": "Treasury Bond",
+        "amount": 500000,
+        "couponRate": 8.5,
+        "issueDate": "2025-01-15",
+        "maturityDate": "2030-01-15",
+        "maturityValue": 712500,
+        "createdAt": "2025-10-22T10:30:00.000Z"
+      },
+      {
+        "id": 2,
+        "issuer": "XYZ Corporation",
+        "bondType": "Corporate Debenture",
+        "amount": 250000,
+        "couponRate": 12.0,
+        "issueDate": "2025-02-01",
+        "maturityDate": "2028-02-01",
+        "maturityValue": 340000,
+        "createdAt": "2025-10-21T14:20:00.000Z"
+      }
+    ]
+  }
+  ```
+- **Errors:**
+  - `500` if database error occurs
+
+---
+
 ## 💰 Expense Endpoints
 
 ### 1. Import Expenses
