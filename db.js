@@ -198,6 +198,45 @@ db.run(`
   }
 });
 
+// Create bonds table
+db.run(`
+  CREATE TABLE IF NOT EXISTS bonds (
+    id INTEGER PRIMARY KEY AUTOINCREMENT,
+    issuer TEXT NOT NULL,
+    bond_type TEXT NOT NULL,
+    amount REAL NOT NULL,
+    coupon_rate REAL NOT NULL,
+    issue_date TEXT NOT NULL,
+    maturity_date TEXT NOT NULL,
+    maturity_value REAL,
+    created_at DATETIME DEFAULT CURRENT_TIMESTAMP
+  )
+`, (err) => {
+  if (err) {
+    console.error('Error creating bonds table:', err);
+  } else {
+    console.log('bonds table ready');
+    
+    // Migration: Rename interest_rate to coupon_rate if it exists
+    db.all("PRAGMA table_info(bonds)", (err, columns) => {
+      if (err) {
+        console.error("Error getting table info for bonds:", err);
+        return;
+      }
+      const hasInterestRateColumn = columns.some(col => col.name === 'interest_rate');
+      if (hasInterestRateColumn) {
+        db.run('ALTER TABLE bonds RENAME COLUMN interest_rate TO coupon_rate', (err) => {
+          if (err) {
+            console.error('Error renaming column interest_rate to coupon_rate in bonds table:', err);
+          } else {
+            console.log('Renamed column interest_rate to coupon_rate in bonds table.');
+          }
+        });
+      }
+    });
+  }
+});
+
 // Create an index on the 'date' column of the expenses table for faster queries
 function createExpensesDateIndex() {
   db.run(`CREATE INDEX IF NOT EXISTS idx_expenses_date ON expenses(date)`);
