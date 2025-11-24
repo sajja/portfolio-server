@@ -311,7 +311,7 @@ router.post('/revoke', authenticateAPI, (req, res) => {
 
 // POST /auth/clients - Create new API client (admin endpoint)
 router.post('/clients', (req, res) => {
-  const { name, description, permissions } = req.body;
+  const { client_id, client_secret, name, description, permissions } = req.body;
   
   if (!name) {
     return res.status(400).json({
@@ -321,6 +321,8 @@ router.post('/clients', (req, res) => {
   }
   
   const clientData = {
+    client_id: client_id ? client_id.trim() : undefined,
+    client_secret: client_secret ? client_secret.trim() : undefined,
     name: name.trim(),
     description: description ? description.trim() : null,
     permissions: permissions || 'read,write'

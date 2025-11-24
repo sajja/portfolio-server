@@ -46,6 +46,11 @@ app.use((req, res, next) => {
 // Authentication routes (no auth required)
 app.use('/auth', require('./authRoutes'));
 
+// Health check endpoint - test server availability (no auth required)
+app.get('/ping', (req, res) => {
+  res.json({ pong: true });
+});
+
 // Root endpoint with authentication info
 app.get('/', (req, res) => {
   res.json({
@@ -70,7 +75,9 @@ app.get('/', (req, res) => {
 // Protected API routes (require authentication)
 app.use('/api/v1/portfolio', authenticateAPI, require('./portfolio'));
 app.use('/api/v1/companies', authenticateAPI, require('./companies'));
-app.use('/api/v1/expense', authenticateAPI, require('./expense'));
+
+// Public API routes (no authentication required)
+app.use('/api/v1/expense', require('./expense'));
 
 app.listen(PORT, () => {
   console.log(`Server running on http://localhost:${PORT}`);

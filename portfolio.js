@@ -681,6 +681,47 @@ router.get('/fx', (req, res) => {
   );
 });
 
+// DELETE /api/v1/portfolio/fx/:id - Remove FX deposit
+router.delete('/fx/:id', (req, res) => {
+  const fxId = parseInt(req.params.id, 10);
+  
+  // Validate ID parameter
+  if (isNaN(fxId) || fxId <= 0) {
+    return res.status(400).json({ 
+      error: 'Invalid FX deposit ID. Must be a positive integer.' 
+    });
+  }
+  
+  // First check if the FX deposit exists
+  db.get('SELECT * FROM deposits WHERE id = ?', [fxId], (err, fxDeposit) => {
+    if (handleDbError(res, err)) return;
+    
+    if (!fxDeposit) {
+      return res.status(404).json({ 
+        error: 'FX deposit not found',
+        id: fxId
+      });
+    }
+    
+    // Delete the FX deposit
+    db.run('DELETE FROM deposits WHERE id = ?', [fxId], function(err) {
+      if (handleDbError(res, err)) return;
+      
+      res.status(200).json({
+        message: 'FX deposit removed successfully',
+        id: fxId,
+        deletedDeposit: {
+          bankName: fxDeposit.bank_name,
+          amount: fxDeposit.amount,
+          currency: fxDeposit.currency,
+          interestRate: fxDeposit.interest_rate,
+          date: fxDeposit.date
+        }
+      });
+    });
+  });
+});
+
 // PUT /api/v1/portfolio/indexfund
 router.put('/indexfund', (req, res) => {
   const { amount, rate, fundHolder, fundType } = req.body;
