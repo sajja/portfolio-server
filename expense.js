@@ -333,6 +333,124 @@ router.get('/categories', (req, res) => {
   );
 });
 
+// GET /api/v1/expense/category/:name - Get transactions for a specific category with date filtering
+router.get('/category/:name', (req, res) => {
+  const categoryName = req.params.name;
+  const { from_date, to_date } = req.query;
+  
+  // Validate category name
+  if (!categoryName || typeof categoryName !== 'string' || categoryName.trim() === '') {
+    return res.status(400).json({ 
+      error: 'Category name is required and must be a non-empty string.' 
+    });
+  }
+  
+  // Default to current month if no dates provided
+  const currentMonth = getCurrentMonthRange();
+  const fromDate = from_date || currentMonth.start;
+  const toDate = to_date || currentMonth.end;
+  
+  // Validate date formats if provided
+  if (from_date && !isValidDate(from_date)) {
+    return res.status(400).json({ 
+      error: 'from_date must be in YYYY-MM-DD format.' 
+    });
+  }
+  
+  if (to_date && !isValidDate(to_date)) {
+    return res.status(400).json({ 
+      error: 'to_date must be in YYYY-MM-DD format.' 
+    });
+  }
+  
+  // Query to get transactions for the specific category
+  const sql = `
+    SELECT 
+      uuid,
+      date,
+      category,
+      subcategory,
+      amount,
+      description,
+      created_at
+    FROM expenses 
+    WHERE category = ? AND date >= ? AND date <= ?
+    ORDER BY subcategory, date DESC
+  `;
+  
+  db.all(sql, [categoryName.trim(), fromDate, toDate], (err, transactions) => {
+    if (handleDbError(res, err)) return;
+    
+    // If no transactions found for this category
+    if (transactions.length === 0) {
+      return res.status(404).json({
+        error: `No transactions found for category '${categoryName.trim()}' in the specified date range.`,
+        category: categoryName.trim(),
+        dateRange: {
+          from: fromDate,
+          to: toDate
+        }
+      });
+    }
+    
+    // Group transactions by subcategory
+    const subcategoryGroups = {};
+    let categoryTotal = 0;
+    let totalTransactions = 0;
+    
+    transactions.forEach(transaction => {
+      const { subcategory, amount } = transaction;
+      
+      // Initialize subcategory group if it doesn't exist
+      if (!subcategoryGroups[subcategory]) {
+        subcategoryGroups[subcategory] = {
+          transactions: [],
+          subtotal: 0,
+          count: 0
+        };
+      }
+      
+      // Add transaction to appropriate subcategory group
+      subcategoryGroups[subcategory].transactions.push({
+        uuid: transaction.uuid,
+        date: transaction.date,
+        amount: transaction.amount,
+        description: transaction.description,
+        createdAt: transaction.created_at
+      });
+      
+      // Update totals
+      subcategoryGroups[subcategory].subtotal += amount;
+      subcategoryGroups[subcategory].count += 1;
+      categoryTotal += amount;
+      totalTransactions += 1;
+    });
+    
+    // Convert subcategories to array format and sort by subtotal (descending)
+    const subcategoriesArray = Object.keys(subcategoryGroups).map(subcategoryName => ({
+      name: subcategoryName,
+      subtotal: subcategoryGroups[subcategoryName].subtotal,
+      transactionCount: subcategoryGroups[subcategoryName].count,
+      transactions: subcategoryGroups[subcategoryName].transactions
+    })).sort((a, b) => b.subtotal - a.subtotal);
+    
+    res.status(200).json({
+      category: categoryName.trim(),
+      dateRange: {
+        from: fromDate,
+        to: toDate
+      },
+      summary: {
+        totalSubcategories: subcategoriesArray.length,
+        totalTransactions: totalTransactions,
+        categoryTotal: categoryTotal,
+        averagePerTransaction: totalTransactions > 0 ? (categoryTotal / totalTransactions) : 0
+      },
+      subcategories: subcategoriesArray
+    });
+  });
+});
+
 // GET /api/v1/expense/summary - Get aggregated data by subcategories (default: last 3 months)
 router.get('/summary', (req, res) => {
   const { from_date, to_date, category } = req.query;

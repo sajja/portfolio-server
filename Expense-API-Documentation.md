@@ -165,7 +165,117 @@ curl http://localhost:3000/api/v1/expense/categories
 
 ---
 
-### 4. Get Expense Summary
+### 4. Get Expenses by Category
+
+**GET** `/api/v1/expense/category/:name`
+
+- **Description:** Returns all transactions for a specific category, grouped by subcategory with detailed breakdown and date filtering
+- **URL Parameters:**
+  - `name` (required) - The category name to filter by
+- **Query Parameters:**
+  - `from_date` (optional) - Filter from date (YYYY-MM-DD, default: current month start)
+  - `to_date` (optional) - Filter to date (YYYY-MM-DD, default: current month end)
+
+- **Response (200):**
+  ```json
+  {
+    "category": "Food & Dining",
+    "dateRange": {
+      "from": "2025-11-01",
+      "to": "2025-11-30"
+    },
+    "summary": {
+      "totalSubcategories": 3,
+      "totalTransactions": 18,
+      "categoryTotal": 567.25,
+      "averagePerTransaction": 31.51
+    },
+    "subcategories": [
+      {
+        "name": "Restaurants",
+        "subtotal": 342.50,
+        "transactionCount": 8,
+        "transactions": [
+          {
+            "uuid": "abc123-def456-789ghi",
+            "date": "2025-11-15",
+            "amount": 45.75,
+            "description": "Dinner at Italian restaurant",
+            "createdAt": "2025-11-15T19:30:00.000Z"
+          },
+          {
+            "uuid": "def456-ghi789-abc123",
+            "date": "2025-11-12",
+            "amount": 28.90,
+            "description": "Lunch meeting",
+            "createdAt": "2025-11-12T13:15:00.000Z"
+          }
+        ]
+      },
+      {
+        "name": "Coffee & Tea",
+        "subtotal": 124.75,
+        "transactionCount": 10,
+        "transactions": [
+          {
+            "uuid": "ghi789-abc123-def456",
+            "date": "2025-11-20",
+            "amount": 4.50,
+            "description": "Morning coffee",
+            "createdAt": "2025-11-20T08:15:00.000Z"
+          }
+        ]
+      }
+    ]
+  }
+  ```
+
+- **Response (404) - No transactions found:**
+  ```json
+  {
+    "error": "No transactions found for category 'Invalid Category' in the specified date range.",
+    "category": "Invalid Category",
+    "dateRange": {
+      "from": "2025-11-01",
+      "to": "2025-11-30"
+    }
+  }
+  ```
+
+- **Key Features:**
+  - Focuses on a single category with subcategory breakdown
+  - Subcategories sorted by total amount (highest to lowest)
+  - Includes transaction counts and subtotals for each subcategory
+  - Each transaction includes full details (UUID, date, amount, description, creation time)
+  - Default date range is current month if no parameters provided
+  - Returns 404 if no transactions found for the category
+
+- **Errors:**
+  - `400` if category name is missing or empty
+  - `400` if invalid date format provided
+  - `404` if no transactions found for the category in date range
+  - `500` if database error
+
+**Example Usage:**
+
+Get current month expenses for "Food & Dining" category:
+```bash
+curl "http://localhost:3000/api/v1/expense/category/Food%20%26%20Dining"
+```
+
+Get Technology expenses for specific date range:
+```bash
+curl "http://localhost:3000/api/v1/expense/category/Technology?from_date=2025-11-01&to_date=2025-11-30"
+```
+
+Get Transportation expenses for last 6 months:
+```bash
+curl "http://localhost:3000/api/v1/expense/category/Transportation?from_date=2025-06-01&to_date=2025-11-30"
+```
+
+---
+
+### 5. Get Expense Summary
 
 **GET** `/api/v1/expense/summary`
 
@@ -243,7 +353,7 @@ curl 'http://localhost:3000/api/v1/expense/summary?startDate=2025-03-01&endDate=
 
 ---
 
-### 5. Get Specific Expense
+### 6. Get Specific Expense
 
 **GET** `/api/v1/expense/:uuid`
 
@@ -279,7 +389,7 @@ curl http://localhost:3000/api/v1/expense/123e4567-e89b-12d3-a456-426614174000
 
 ---
 
-### 6. Update Expense
+### 7. Update Expense
 
 **PUT** `/api/v1/expense/:uuid`
 
@@ -325,7 +435,7 @@ curl -X PUT http://localhost:3000/api/v1/expense/123e4567-e89b-12d3-a456-4266141
 
 ---
 
-### 7. Delete Expense
+### 8. Delete Expense
 
 **DELETE** `/api/v1/expense/:uuid`
 
