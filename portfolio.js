@@ -220,6 +220,14 @@ router.post('/equity/:name/buy', (req, res) => {
   }
 
   const date = new Date().toISOString().split('T')[0];
+  
+  // Apply broker fees and other charges (2.252% of total value)
+  const BROKER_FEE_PERCENTAGE = 2.252;
+  const totalCost = qtty * price;
+  const brokerFee = totalCost * (BROKER_FEE_PERCENTAGE / 100);
+  const totalWithFees = totalCost + brokerFee;
+  const effectivePrice = totalWithFees / qtty;
+  const roundedEffectivePrice = Math.round(effectivePrice * 100) / 100;
 
   db.run(
     'INSERT INTO transactions (stock, type, qtty, price, date) VALUES (?, ?, ?, ?, ?)',
@@ -232,23 +240,50 @@ router.post('/equity/:name/buy', (req, res) => {
       const oldQtty = row.qtty;
       const oldPrice = row.avg_price;
       const newQtty = oldQtty + qtty;
-      const avgPrice = Math.round(((oldQtty * oldPrice) + (qtty * price)) / newQtty * 100) / 100;
+      const avgPrice = Math.round(((oldQtty * oldPrice) + (qtty * roundedEffectivePrice)) / newQtty * 100) / 100;
       db.run(
         'UPDATE stocks SET qtty = ?, avg_price = ?, date = ? WHERE symbol = ?',
         [newQtty, avgPrice, date, name],
         function (err) {
           if (handleDbError(res, err)) return;
-          res.json({ message: 'Stock bought successfully', name, qtty: newQtty, avg_price: avgPrice });
+          res.json({ 
+            message: 'Stock bought successfully', 
+            name, 
+            qtty: newQtty, 
+            avg_price: avgPrice,
+            purchase_details: {
+              stock_price: price,
+              quantity: qtty,
+              subtotal: totalCost,
+              broker_fee: Math.round(brokerFee * 100) / 100,
+              broker_fee_percentage: BROKER_FEE_PERCENTAGE,
+              total_cost: Math.round(totalWithFees * 100) / 100,
+              effective_price_per_share: roundedEffectivePrice
+            }
+          });
         }
       );
     } else {
-      const roundedPrice = Math.round(price * 100) / 100;
       db.run(
         'INSERT INTO stocks (symbol, qtty, avg_price, date) VALUES (?, ?, ?, ?)',
-        [name, qtty, roundedPrice, date],
+        [name, qtty, roundedEffectivePrice, date],
         function (err) {
           if (handleDbError(res, err)) return;
-          res.json({ message: 'Stock bought successfully', name, qtty, avg_price: roundedPrice });
+          res.json({ 
+            message: 'Stock bought successfully', 
+            name, 
+            qtty, 
+            avg_price: roundedEffectivePrice,
+            purchase_details: {
+              stock_price: price,
+              quantity: qtty,
+              subtotal: totalCost,
+              broker_fee: Math.round(brokerFee * 100) / 100,
+              broker_fee_percentage: BROKER_FEE_PERCENTAGE,
+              total_cost: Math.round(totalWithFees * 100) / 100,
+              effective_price_per_share: roundedEffectivePrice
+            }
+          });
         }
       );
     }
